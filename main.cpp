@@ -4,13 +4,33 @@
 #include <cmath>
 #include <cstring>
 #include <sstream>
+#include <unordered_map>
 
 using namespace std;
 
-const bool DEBUG = false;
+enum logic{
+    UNDEFINED, FALSE, TRUE, DEFINITELY_TRUE, DEFINITELY_FALSE
+};
 
 int min_cost = -2;
 int max_cost = INT32_MAX;
+
+class Edge;
+
+class EdgesCycle {
+public:
+    list<Edge*>* edges;
+    int min_cost;
+    int max_cost;
+    int logicalValue;
+
+    EdgesCycle(){
+        this->edges = new list<Edge*>();
+        this->min_cost = -2;
+        this->max_cost = INT32_MAX;
+        this->logicalValue = logic::UNDEFINED;
+    }
+};
 
 class Edge {
 public:
@@ -37,8 +57,6 @@ list<Edge*>* trimAway(list<Edge*>* edgesFrom[], list<Edge*>* edgesTo[], Edge* e,
 list<Edge*>* trimToCycle(list<Edge*>* edgesFrom[], list<Edge*>* edgesTo[], Edge* e, bool visited[]);
 
 list<Edge*>* trimToCycle(list<Edge*>* edgesFrom[], list<Edge*>* edgesTo[], Edge* e, bool visited[]){
-    if(DEBUG) cout << "To cycle: " << e->toString() << endl;
-
     min_cost = max(min_cost, e->min);
     max_cost = min(max_cost, e->max);
     if(max_cost < min_cost)
@@ -56,7 +74,6 @@ list<Edge*>* trimToCycle(list<Edge*>* edgesFrom[], list<Edge*>* edgesTo[], Edge*
         returned = trimAway(edgesFrom, edgesTo, edgesTo[e->to]->front(), visited);
         if (returned != nullptr) {
             toReturn->merge(*returned);
-            if(DEBUG) cout << "Merged1: " << e->toString() << endl;
         }
         else return nullptr;
     }
@@ -65,7 +82,6 @@ list<Edge*>* trimToCycle(list<Edge*>* edgesFrom[], list<Edge*>* edgesTo[], Edge*
         returned = trimAway(edgesFrom, edgesTo, edgesFrom[e->from]->front(), visited);
         if (returned != nullptr) {
             toReturn->merge(*returned);
-            if(DEBUG) cout << "Merged2: " << e->toString() << endl;
         }
         else return nullptr;
     }
@@ -74,7 +90,6 @@ list<Edge*>* trimToCycle(list<Edge*>* edgesFrom[], list<Edge*>* edgesTo[], Edge*
         returned = trimToCycle(edgesFrom, edgesTo, edgesFrom[e->to]->front(), visited);
         if (returned != nullptr) {
             toReturn->merge(*returned);
-            if(DEBUG) cout << "Merged3: " << e->toString() << endl;
         }
         else return nullptr;
     }
@@ -83,7 +98,6 @@ list<Edge*>* trimToCycle(list<Edge*>* edgesFrom[], list<Edge*>* edgesTo[], Edge*
         returned = trimToCycle(edgesFrom, edgesTo, edgesTo[e->from]->front(), visited);
         if (returned != nullptr) {
             toReturn->merge(*returned);
-            if(DEBUG) cout << "Merged4: " << e->toString() << endl;
         }
         else return nullptr;
     }
@@ -93,9 +107,7 @@ list<Edge*>* trimToCycle(list<Edge*>* edgesFrom[], list<Edge*>* edgesTo[], Edge*
 }
 
 list<Edge*>* trimAway(list<Edge*>* edgesFrom[], list<Edge*>* edgesTo[], Edge* e, bool visited[]){
-    if(DEBUG) cout << "Away : " << e->toString() << endl;
-
-    auto* toReturn = new list<Edge*>();
+    list<Edge*>* toReturn = nullptr;
     visited[e->from] = true;
     visited[e->to] = true;
     edgesFrom[e->from]->remove(e);
@@ -105,8 +117,7 @@ list<Edge*>* trimAway(list<Edge*>* edgesFrom[], list<Edge*>* edgesTo[], Edge* e,
     if (!edgesTo[e->to]->empty()) {
         returned = trimToCycle(edgesFrom, edgesTo, edgesTo[e->to]->front(), visited);
         if (returned != nullptr) {
-            toReturn->merge(*returned);
-            if(DEBUG) cout << "Merged5: " << e->toString() << endl;
+            toReturn = returned;
         }
         else return nullptr;
     }
@@ -114,8 +125,11 @@ list<Edge*>* trimAway(list<Edge*>* edgesFrom[], list<Edge*>* edgesTo[], Edge* e,
     if (!edgesFrom[e->from]->empty()) {
         returned = trimToCycle(edgesFrom, edgesTo, edgesFrom[e->from]->front(), visited);
         if (returned != nullptr) {
-            toReturn->merge(*returned);
-            if(DEBUG) cout << "Merged6: " << e->toString() << endl;
+            if(toReturn != nullptr) {
+                toReturn->merge(*returned);
+                delete returned;
+            }
+            else toReturn = returned;
         }
         else return nullptr;
     }
@@ -125,7 +139,7 @@ list<Edge*>* trimAway(list<Edge*>* edgesFrom[], list<Edge*>* edgesTo[], Edge* e,
 
 list<Edge*>* trimGraph(list<Edge*>* edgesFrom[], list<Edge*>* edgesTo[], int V){
     bool* visited = new bool[V+1]();
-    for(int i = 0; i <= V; ++i)
+    for(int i = 1; i <= V; ++i)
         visited[i] = false;
     auto* toReturn = new list<Edge*>();
     list<Edge*>* returned = nullptr;
@@ -136,9 +150,9 @@ list<Edge*>* trimGraph(list<Edge*>* edgesFrom[], list<Edge*>* edgesTo[], int V){
             if (edgesFrom[i]->size() == 1){
                 visited[i] = true;
                 returned = trimToCycle(edgesFrom, edgesTo, edgesFrom[i]->front(), visited);
-                if (DEBUG) cout << "Edges from " << i << " trimmed to cycle";
                 if (returned != nullptr) {
                     toReturn->merge(*returned);
+                    delete returned;
                 }
                 else return nullptr;
             }
@@ -149,9 +163,9 @@ list<Edge*>* trimGraph(list<Edge*>* edgesFrom[], list<Edge*>* edgesTo[], int V){
             if (edgesTo[i]->size() == 1) {
                 visited[i] = true;
                 returned = trimToCycle(edgesFrom, edgesTo, edgesTo[i]->front(), visited);
-                if (DEBUG) cout << "Edgdes to " << i << " trimmed to cycle";
                 if (returned != nullptr) {
                     toReturn->merge(*returned);
+                    delete returned;
                 }
                 else return nullptr;
             }
@@ -161,37 +175,189 @@ list<Edge*>* trimGraph(list<Edge*>* edgesFrom[], list<Edge*>* edgesTo[], int V){
     return toReturn;
 }
 
-list<Edge*>* findCycles(list<Edge*>* edgesFrom[], list<Edge*>* edgesTo[], int V){
-    auto* toReturn = trimGraph(edgesFrom, edgesTo, V);
-    if (toReturn == nullptr) return nullptr;
-    if(DEBUG) cout << "Graph trimmed" << endl;
-    Edge* tmp1;
-    Edge* tmp2;
-    list<Edge*>* returned = nullptr;
-    for (int n = 0; n < V; ++n){
-        for (int i = 1; i <= V; ++i) {
-            if (!edgesFrom[i]->empty()) {
-                tmp1 = edgesFrom[i]->front();
-                tmp2 = edgesFrom[i]->back();
-                if (tmp1->max < min_cost || tmp1->min > max_cost) {
-                    edgesFrom[tmp1->from]->remove(tmp1);
-                    edgesTo[tmp1->to]->remove(tmp1);
-                }
-                if (tmp2->max < min_cost || tmp2->min > max_cost) {
-                    edgesFrom[tmp2->from]->remove(tmp2);
-                    edgesTo[tmp2->to]->remove(tmp2);
-                }
-                if (edgesFrom[i]->empty())
-                    return nullptr;
-                if (edgesFrom[i]->size() == 1) {
-                    returned = trimToCycle(edgesFrom, edgesTo, edgesFrom[i]->front(), new bool[V + 1]);
-                    if (returned == nullptr) return nullptr;
-                    else toReturn->merge(*returned);
-                }
+void edgesDFS(unordered_map<int, list<int>*>& edgesGraph, int edge, int cycleNumber, unordered_map<int,int>& cyclesMap, unordered_map<int,bool>& visited){
+    visited[edge] = true;
+
+    cyclesMap[edge] = cycleNumber;
+    for(int e: *edgesGraph[edge]){
+        if(!visited[e]){
+            edgesDFS(edgesGraph, e, cycleNumber, cyclesMap, visited);
+        }
+    }
+}
+
+bool setDefinitelyTrue(EdgesCycle** cycles, unordered_map<int, int>& mapToCycle, unordered_map<Edge*, int>& edgeToVertex, int cycle);
+bool setDefinitelyFalse(EdgesCycle** cycles, unordered_map<int, int>& mapToCycle, unordered_map<Edge*, int>& edgeToVertex, int cycle);
+
+bool setDefinitelyTrue(EdgesCycle** cycles, unordered_map<int, int>& mapToCycle, unordered_map<Edge*, int>& edgeToVertex, int cycle){
+    cycles[cycle]->logicalValue = logic::DEFINITELY_TRUE;
+    min_cost = max(min_cost, cycles[cycle]->min_cost);
+    max_cost = min(max_cost, cycles[cycle]->max_cost);
+    if(max_cost < min_cost)
+        return false;
+    Edge* e = cycles[cycle]->edges->front();
+    if(cycles[mapToCycle[-edgeToVertex[e]]]->logicalValue == logic::UNDEFINED){
+        if(!setDefinitelyFalse(cycles, mapToCycle, edgeToVertex, mapToCycle[-edgeToVertex[e]])){
+            return false;
+        }
+    } else if (cycles[mapToCycle[-edgeToVertex[e]]]->logicalValue == logic::DEFINITELY_TRUE) {
+        return false;
+    }
+    return true;
+}
+
+bool setDefinitelyFalse(EdgesCycle** cycles, unordered_map<int, int>& mapToCycle, unordered_map<Edge*, int>& edgeToVertex, int cycle){
+    cycles[cycle]->logicalValue = logic::DEFINITELY_FALSE;
+    Edge* e = cycles[cycle]->edges->front();
+    if(cycles[mapToCycle[-edgeToVertex[e]]]->logicalValue == logic::UNDEFINED){
+        if(!setDefinitelyTrue(cycles, mapToCycle, edgeToVertex, mapToCycle[-edgeToVertex[e]])) {
+            return false;
+        }
+    } else if (cycles[mapToCycle[-edgeToVertex[e]]]->logicalValue == logic::DEFINITELY_FALSE) {
+        return false;
+    }
+    return true;
+}
+
+bool setTrue(EdgesCycle** cycles, unordered_map<int, int>& mapToCycle, unordered_map<Edge*, int>& edgeToVertex, int cycle, int cycleNumber, int curMin, int curMax);
+bool setFalse(EdgesCycle** cycles, unordered_map<int, int>& mapToCycle, unordered_map<Edge*, int>& edgeToVertex, int cycle, int cycleNumber, int curMin, int curMax);
+
+bool setTrue(EdgesCycle** cycles, unordered_map<int, int>& mapToCycle, unordered_map<Edge*, int>& edgeToVertex, int cycle, int cycleNumber, int curMin, int curMax){
+    if(cycle == cycleNumber){
+        min_cost = curMin;
+        max_cost = curMax;
+        return true;
+    }
+    else {
+        int counterLogicalValue = cycles[mapToCycle[-edgeToVertex[cycles[cycle]->edges->front()]]]->logicalValue;
+        if (counterLogicalValue == logic::TRUE){
+            return false;
+        }
+        else {
+            bool result;
+            curMin = max(curMin, cycles[cycle]->min_cost);
+            curMax = min(curMax, cycles[cycle]->max_cost);
+            if (curMin > curMax) return false;
+
+            cycles[cycle]->logicalValue = logic::TRUE;
+            do {
+                ++cycle;
+            } while(cycle < cycleNumber && cycles[cycle]->logicalValue != UNDEFINED);
+            result = setFalse(cycles, mapToCycle, edgeToVertex, cycle, cycleNumber, curMin, curMax) || setTrue(cycles, mapToCycle, edgeToVertex, cycle, cycleNumber, curMin, curMax);
+            if(result)
+                return true;
+            cycles[cycle]->logicalValue = logic::UNDEFINED;
+            return false;
+        }
+    }
+}
+
+bool setFalse(EdgesCycle** cycles, unordered_map<int, int>& mapToCycle, unordered_map<Edge*, int>& edgeToVertex, int cycle, int cycleNumber, int curMin, int curMax){
+    if(cycle >= cycleNumber){
+        min_cost = curMin;
+        max_cost = curMax;
+        return true;
+    }
+    else {
+        int counterLogicalValue = cycles[mapToCycle[-edgeToVertex[cycles[cycle]->edges->front()]]]->logicalValue;
+        if (counterLogicalValue == logic::FALSE){
+            return false;
+        }
+        else {
+            bool result;
+            cycles[cycle]->logicalValue = logic::FALSE;
+            do {
+                ++cycle;
+            } while(cycle < cycleNumber && cycles[cycle]->logicalValue != UNDEFINED);
+            result = setFalse(cycles, mapToCycle, edgeToVertex, cycle, cycleNumber, curMin, curMax) || setTrue(cycles, mapToCycle, edgeToVertex, cycle, cycleNumber, curMin, curMax);
+            if(result)
+                return true;
+            cycles[cycle]->logicalValue = logic::UNDEFINED;
+            return false;
+        }
+    }
+}
+
+list<Edge*>* findCycles(list<Edge*>* edgesFrom[], list<Edge*>* edgesTo[], int V, int E){
+    auto *toReturn = new list<Edge*>();
+    if(E != 2*V) {
+        toReturn = trimGraph(edgesFrom, edgesTo, V);
+        if (toReturn == nullptr) return nullptr;
+        if (toReturn->size() == V) return toReturn;
+    }
+    unordered_map<Edge*, int> edgeToVertex;
+    unordered_map<int, Edge*> vertexToEdge;
+    unordered_map<int, list<int>*> edgesGraph;
+    unordered_map<int, bool> visited;
+    for (int i = 1; i <= V; ++i){
+        if (!edgesFrom[i]->empty()){
+            edgeToVertex[edgesFrom[i]->front()] = -i;
+            edgeToVertex[edgesFrom[i]->back()] = i;
+
+            vertexToEdge[-i] = edgesFrom[i]->front();
+            vertexToEdge[i] = edgesFrom[i]->back();
+
+            edgesGraph[-i] = new list<int>();
+            edgesGraph[i] = new list<int>();
+
+            visited[-i] = false;
+            visited[i] = false;
+        }
+    }
+    int index1;
+    int index2;
+    for (int i = 1; i <= V; ++i) {
+        if(!edgesTo[i]->empty()){
+            index1 = edgeToVertex[edgesTo[i]->front()];
+            index2 = edgeToVertex[edgesTo[i]->back()];
+            edgesGraph[-index1]->push_back(index2);
+            edgesGraph[-index2]->push_back(index1);
+        }
+    }
+    int cycleNumber = 0;
+    unordered_map<int, int> mapToCycle;
+    for (pair<int, Edge*> p: vertexToEdge){
+        if(!visited[p.first]){
+            edgesDFS(edgesGraph, p.first, cycleNumber, mapToCycle, visited);
+            ++cycleNumber;
+        }
+    }
+
+    auto** cycles = new EdgesCycle*[cycleNumber];
+    for(int i = 0; i < cycleNumber; ++i){
+        cycles[i] = new EdgesCycle();
+    }
+
+    for(pair<int, int> p: mapToCycle){
+        cycles[p.second]->edges->push_back(vertexToEdge[p.first]);
+        cycles[p.second]->min_cost = max(cycles[p.second]->min_cost, vertexToEdge[p.first]->min);
+        cycles[p.second]->max_cost = min(cycles[p.second]->max_cost, vertexToEdge[p.first]->max);
+    }
+
+    for(int i = 0; i < cycleNumber; ++i) {
+        if (cycles[i]->max_cost < cycles[i]->min_cost || cycles[i]->max_cost < min_cost || cycles[i]->min_cost > max_cost) {
+            if(cycles[i]->logicalValue == logic::DEFINITELY_TRUE){
+                return nullptr;
+            } else if(cycles[i]->logicalValue == logic::UNDEFINED) {
+                if(!setDefinitelyFalse(cycles, mapToCycle, edgeToVertex, i)) return nullptr;
             }
         }
     }
-    return toReturn;
+
+    int cycle = 0;
+    while(cycle < cycleNumber && (cycles[cycle]->logicalValue == logic::DEFINITELY_TRUE || cycles[cycle]->logicalValue == logic::DEFINITELY_FALSE)){
+        ++cycle;
+    }
+
+    bool result = setFalse(cycles, mapToCycle, edgeToVertex, cycle, cycleNumber, min_cost, max_cost) || setTrue(cycles, mapToCycle, edgeToVertex, cycle, cycleNumber, min_cost, max_cost);
+    if(result) {
+        for(int i = 0; i < cycleNumber; ++i){
+            if(cycles[i]->logicalValue == logic::DEFINITELY_TRUE || cycles[i]->logicalValue == logic::TRUE)
+                toReturn->merge(*cycles[i]->edges);
+        }
+        return toReturn;
+    } else
+        return nullptr;
 }
 
 int main() {
@@ -202,11 +368,11 @@ int main() {
     cin >> N;
     for(int n = 0; n < N; ++n) {
         cin >> V >> E;
-        min_cost = 0;
+        min_cost = -100;
         max_cost = INT32_MAX;
         auto *edgesFrom = new list<Edge *> *[V + 1];
         auto *edgesTo = new list<Edge *> *[V + 1];
-        for (int i = 0; i < V + 1; ++i) {
+        for (int i = 1; i <= V; ++i) {
             edgesFrom[i] = new list<Edge *>();
             edgesTo[i] = new list<Edge *>();
         }
@@ -216,14 +382,14 @@ int main() {
             edgesFrom[from]->push_back(tmp);
             edgesTo[to]->push_back(tmp);
         }
-        auto edgesList = findCycles(edgesFrom, edgesTo, V);
+        auto edgesList = findCycles(edgesFrom, edgesTo, V, E);
         if (edgesList == nullptr) cout << -1 << endl;
         else if(edgesList->empty()) cout << -1 << endl;
         else {
             cout << min_cost << endl;
             for (auto e: *edgesList) cout << e->toString() << endl;
         }
-        for (int i = 0; i < V+1; ++i){
+        for (int i = 1; i <= V; ++i){
             delete edgesFrom[i];
             delete edgesTo[i];
         }
